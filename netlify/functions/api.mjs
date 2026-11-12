@@ -12,7 +12,19 @@ import { JsRoutingEngine } from "../../api/src/services/jsEngine.js";
 import { RouteService } from "../../api/src/services/routeService.js";
 import { loadStationsFromFile, StationService } from "../../api/src/services/stationService.js";
 
-const here = dirname(fileURLToPath(import.meta.url));
+function getModuleDir() {
+  try {
+    if (typeof import.meta !== "undefined" && import.meta.url) {
+      return dirname(fileURLToPath(import.meta.url));
+    }
+  } catch {
+    // ignore when bundled as CJS
+  }
+  if (typeof __dirname !== "undefined") return __dirname;
+  return process.cwd();
+}
+
+const here = getModuleDir();
 let runtimePromise = null;
 
 function resolveDataFile(envName, relativePath) {
@@ -21,13 +33,16 @@ function resolveDataFile(envName, relativePath) {
   }
   const candidates = [
     resolve(process.cwd(), relativePath),
+    ...(process.env.LAMBDA_TASK_ROOT ? [resolve(process.env.LAMBDA_TASK_ROOT, relativePath)] : []),
+    resolve(here, relativePath),
+    resolve(here, "../", relativePath),
     resolve(here, "../../", relativePath),
     resolve(here, "../../../", relativePath),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
-  throw new Error(`Could not locate ${relativePath}`);
+  throw new Error(`Could not locate ${relativePath} (cwd=${process.cwd()}, here=${here})`);
 }
 
 async function getRuntime() {
@@ -52,6 +67,14 @@ async function getRuntime() {
 
 function normalizePath(rawPath) {
   let p = rawPath || "/";
+  if (p.startsWith("http://") || p.startsWith("https://")) {
+    try {
+      p = new URL(p).pathname;
+    } catch {
+      p = "/";
+    }
+  }
+  p = p.split("?")[0];
   if (p.startsWith("/.netlify/functions/api")) {
     p = p.slice("/.netlify/functions/api".length) || "/";
   }
@@ -76,7 +99,7 @@ function jsonResponse(statusCode, body) {
 export async function handler(event) {
   try {
     const method = (event.httpMethod || "GET").toUpperCase();
-    const path = normalizePath(event.path);
+    const path = normalizePath(event.path || event.rawUrl);
     const { stations, engine, routes } = await getRuntime();
 
     if (method === "GET" && (path === "/health" || path === "/api/health")) {

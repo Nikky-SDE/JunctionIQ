@@ -10,8 +10,7 @@
   node_bundler = "esbuild"
   included_files = [
     "data/processed/stations.json",
-    "data/processed/timetable.json",
-    "api/src/**"
+    "data/processed/timetable.json"
   ]
 
 [[headers]]
@@ -28,11 +27,13 @@
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/health"
   to = "/.netlify/functions/api/health"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/*"
