@@ -15,18 +15,32 @@ interface Props {
 }
 
 export function MapPanel({ journeys, selectedId, hoverId, onSelect, endpoints, className = "" }: Props) {
-  const [fitAllSignal, setFitAllSignal] = useState(0);
+  const [prevSelectedId, setPrevSelectedId] = useState(selectedId);
+  const [showAll, setShowAll] = useState(false);
+
+  if (selectedId !== prevSelectedId) {
+    setPrevSelectedId(selectedId);
+    setShowAll(false);
+  }
+
   const selected = journeys.find((j) => j.id === selectedId) ?? null;
   return (
     <div className={`card relative isolate overflow-hidden ${className}`}>
       <Suspense fallback={<div className="h-full w-full animate-pulse bg-slate-100 dark:bg-slate-900" />}>
-        <RouteMap journeys={journeys} selectedId={selectedId} hoverId={hoverId} onSelect={onSelect} endpoints={endpoints} fitAllSignal={fitAllSignal} />
+        <RouteMap
+          journeys={journeys}
+          selectedId={selectedId}
+          hoverId={hoverId}
+          onSelect={onSelect}
+          endpoints={endpoints}
+          fitAll={showAll}
+        />
       </Suspense>
 
       {journeys.length > 1 && (
         <button
           type="button"
-          onClick={() => setFitAllSignal((n) => n + 1)}
+          onClick={() => setShowAll(true)}
           className="absolute right-3 top-3 z-[500] rounded-lg bg-white/95 px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-soft ring-1 ring-slate-200 backdrop-blur transition hover:text-brand-600 dark:bg-slate-900/90 dark:text-slate-200 dark:ring-slate-700"
         >
           Show all {journeys.length}

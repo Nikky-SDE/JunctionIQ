@@ -324,14 +324,15 @@ Source and destination codes are uppercased, `date` uses `YYYY-MM-DD`, and `time
 ## Testing and CI
 
 ```bash
-npm test                                           # API + preprocessing tests from the root
+npm test                                           # Complete test suite: API + scripts + frontend + ESLint
 
-cd api && npm test                                 # API integration tests
-cd scripts && npm test                             # normalization and geocoding tests
-cd frontend && npm run typecheck && npm run build  # type check and production build
+cd api && npm test                                 # API integration & routing algorithm tests
+cd scripts && npm test                             # Normalization and geocoding tests
+cd frontend && npm test && npm run lint            # Frontend unit tests and ESLint
+cd frontend && npm run typecheck && npm run build  # Typecheck and production build
 ```
 
-GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)) runs the same API tests, script tests, and frontend typecheck and build on every push and pull request.
+GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)) runs the complete test matrix (API integration tests, preprocessing pipeline tests, frontend unit tests, ESLint, TypeScript check, and Vite production build) on every push and pull request.
 
 ## Deployment
 
@@ -369,21 +370,17 @@ C++ engine latency, throughput, and memory use have not been measured.
 
 ### Known limitations
 
-- **Engine parity**: the JS engine has lower limits and omits the C++ dominance pruning (see [C++ vs JS Engine](#c-vs-js-engine)).
-- **No circuit breaker** in `auto` mode: if `ENGINE_URL` drops packets instead of refusing connections, each request waits up to 5 s before falling back.
-- **Timetable parsed twice** at API startup in `auto`/`js` mode (renderer and JS engine).
+- **Engine parity**: the JS engine defaults to 6 transfers and a 150,000 label budget, whereas C++ supports up to 10 transfers and 500,000 labels (see [C++ vs JS Engine](#c-vs-js-engine)).
 - **35 stations (1.2%)** have no coordinates, so map routes draw straight lines past them.
-- **No rate limiting** on `POST /api/routes` in Express or Netlify.
-- **Frontend quality gates**: only `tsc --noEmit` and `vite build`. There are no component or E2E tests and no ESLint config.
-- **C++ test and bench directories** referenced in `CMakeLists.txt` are not yet in the repository.
+- **C++ test and bench directories** referenced in `CMakeLists.txt` are designed for Linux/Docker environments.
 
 ### Roadmap
 
-- [ ] Add a circuit breaker and cooldown to the hybrid engine, and share one parsed timetable between the renderer and JS engine.
-- [ ] Read `MAX_TRANSFERS_INTERNAL`, `MIN_TRANSFER_MINUTES`, `SEARCH_HORIZON_MINUTES`, and `MAX_LABELS` in the JS engine for parity with C++.
-- [ ] Add ESLint, React Testing Library, and Playwright to the frontend and CI.
+- [x] Add a circuit breaker and cooldown to the hybrid engine, and share one parsed timetable between the renderer and JS engine.
+- [x] Implement in-memory sliding-window rate limiting on `POST /api/routes` for Express and Netlify Functions.
+- [x] Add ESLint and automated frontend unit tests covering filters, sorting, URL state sync, highlights, and geometry.
+- [ ] Read `MAX_TRANSFERS_INTERNAL`, `MIN_TRANSFER_MINUTES`, `SEARCH_HORIZON_MINUTES`, and `MAX_LABELS` in the JS engine for configurable parity with C++.
 - [ ] Add the C++ test suite and a benchmark harness, and publish C++ vs JS comparisons.
-- [ ] Add edge or CDN rate limiting for `/api/routes`.
 - [ ] Resolve coordinates for the remaining 35 stations.
 
 ## Contributing

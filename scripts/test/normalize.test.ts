@@ -67,3 +67,17 @@ test("days mask bit0 = sunday", () => {
   const r = cleanRecord(rec([stop(1, "A", null, "10:00", 1, 0), stop(2, "B", "11:00", null, 1, 5)], { operating_days: only }), "correct");
   assert.equal(r.train!.days_mask, 0b10);
 });
+test("scraper station code corruptions are corrected to canonical stations", () => {
+  const s = [
+    stop(1, "A", null, "10:00", 1, 0),
+    { ...stop(2, "MGR", "11:00", "11:10", 1, 50), station_name: "PURATCHI THALAIVAR DR." },
+    { ...stop(3, "BPR", "12:00", "12:10", 1, 90), station_name: "BADARPUR JN." },
+    stop(4, "C", "13:00", null, 1, 140)
+  ];
+  const r = cleanRecord(rec(s), "correct");
+  assert.equal(r.train!.stops[1].code, "MAS");
+  assert.equal(r.train!.stops[2].code, "BPB");
+  assert.ok(r.issues.some((i) => i.code === "CODE_CORRECTED_FROM_NAME" && i.message.includes("MAS")));
+  assert.ok(r.issues.some((i) => i.code === "CODE_CORRECTED_FROM_NAME" && i.message.includes("BPB")));
+});
+

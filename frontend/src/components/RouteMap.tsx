@@ -13,7 +13,7 @@ export interface RouteMapProps {
   hoverId: string | null;
   onSelect: (id: string) => void;
   endpoints: { from: StationHit | null; to: StationHit | null };
-  fitAllSignal: number;
+  fitAll?: boolean;
 }
 
 function useDark(): boolean {
@@ -73,7 +73,7 @@ function ViewController({ bounds, topPad }: { bounds: [LatLon, LatLon] | null; t
   return null;
 }
 
-export default function RouteMap({ journeys, selectedId, hoverId, onSelect, endpoints, fitAllSignal }: RouteMapProps) {
+export default function RouteMap({ journeys, selectedId, hoverId, onSelect, endpoints, fitAll = false }: RouteMapProps) {
   const dark = useDark();
   const [coords, setCoords] = useState<Coords | null>(null);
   useEffect(() => {
@@ -96,11 +96,7 @@ export default function RouteMap({ journeys, selectedId, hoverId, onSelect, endp
   const to = pin(endpoints.to);
 
   // What to frame: the selected journey, else all journeys (after "fit all"), else the chosen endpoints.
-  const [fitAllState, setFitAllState] = useState<{ signal: number; forId: string | null }>({ signal: 0, forId: null });
-  if (fitAllSignal > 0 && fitAllState.signal !== fitAllSignal) {
-    setFitAllState({ signal: fitAllSignal, forId: selectedId });
-  }
-  const fitAll = fitAllSignal > 0 && fitAllState.forId === selectedId;
+  
   const bounds = useMemo(() => {
     if (!coords) return null;
     if (selected && !fitAll) return boundsOf((paths.get(selected.id) ?? []).flat());

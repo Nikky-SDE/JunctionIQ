@@ -29,9 +29,11 @@ jobs:
         working-directory: scripts
         run: npm test
 
-      - name: Typecheck and build frontend
+      - name: Test, lint, typecheck, and build frontend
         working-directory: frontend
         run: |
           npm ci
+          npm test
+          npm run lint
           npm run typecheck
           npm run build

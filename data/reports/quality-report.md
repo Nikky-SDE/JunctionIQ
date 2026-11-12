@@ -1,6 +1,6 @@
 # Data quality report
 
-Generated 2026-11-10T07:30:49.998Z from `train_data` with policy `correct`.
+Generated 2026-11-12T18:02:23.568Z from `C:\Users\Lenovo\Desktop\JunctionIQ\train_data` with policy `correct`.
 
 ## Raw dataset
 ```json
@@ -145,7 +145,8 @@ Generated 2026-11-10T07:30:49.998Z from `train_data` with policy `correct`.
 | CODE_RECOVERED_FROM_NAME | 5 |
 | STATION_REPEATED_IN_TRAIN | 4 |
 | NAME_SHARED_BY_CODES | 3 |
-| STATION_NAME_VARIANTS | 3 |
+| CODE_CORRECTED_FROM_NAME | 2 |
+| STATION_NAME_VARIANTS | 2 |
 | ZERO_MINUTE_HOP | 2 |
 | LONG_DWELL | 1 |
 | SHARED_TIMETABLE_DIFFERENT_DAYS | 1 |
@@ -155,9 +156,10 @@ Generated 2026-11-10T07:30:49.998Z from `train_data` with policy `correct`.
 - **warning** `LONG_DWELL` 08450 stop#1: 08450.json: dwell of 720 min at KON
 - **warning** `CODE_RECOVERED_FROM_NAME` 11403 stop#22: 11403.json: station_code "Point(4)" replaced by MRJ taken from name "MIRAJ JN. MRJ Train Reversal"
 - **warning** `CODE_RECOVERED_FROM_NAME` 11404 stop#16: 11404.json: station_code "Point(4)" replaced by AK taken from name "AKOLA JN. AK Train Reversal"
+- **warning** `CODE_CORRECTED_FROM_NAME` 12501 stop#17: 12501.json: station_code BPR replaced by BPB taken from name "BADARPUR JN."
 - **warning** `CODE_RECOVERED_FROM_NAME` 12516 stop#4: 12516.json: station_code "" replaced by LMG taken from name "LUMDING JN LMG Train Reversal"
+- **warning** `CODE_CORRECTED_FROM_NAME` 12970 stop#14: 12970.json: station_code MGR replaced by MAS taken from name "PURATCHI THALAIVAR DR."
 - **warning** `CODE_RECOVERED_FROM_NAME` 19415 stop#28: 19415.json: station_code "Point(4)" replaced by ASR taken from name "AMRITSAR ASR Train Reversal"
 - **warning** `CODE_RECOVERED_FROM_NAME` 19415 stop#30: 19415.json: station_code "Point(5)" replaced by PTK taken from name "PATHANKOT PTK Train Reversal"
+- **warning** `STATION_NAME_VARIANTS` -: MAS: "PURATCHI THALAIVAR DR. MGR CTL"x78, "PURATCHI THALAIVAR DR."x1; canonical "PURATCHI THALAIVAR DR. MGR CTL"
 - **warning** `STATION_NAME_VARIANTS` -: SWM: "SAWAI MADHOPUR JN"x68, "SAWAI MADHOPUR"x1; canonical "SAWAI MADHOPUR JN"
-- **warning** `STATION_NAME_VARIANTS` -: MGR: "MONGHYR"x2, "PURATCHI THALAIVAR DR."x1; canonical "MONGHYR"
-- **warning** `STATION_NAME_VARIANTS` -: BPR: "BHOJIPURA JN."x6, "BADARPUR JN."x1; canonical "BHOJIPURA JN."

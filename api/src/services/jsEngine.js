@@ -424,7 +424,8 @@ export class JsRoutingEngine {
           const ev = deps[i];
           if (cur.usedTrains.has(ev.train)) continue;
           const minStartDay = Math.floor((minDep - ev.depRel) / 1440);
-          for (let offsetDay = 0; offsetDay <= 2; offsetDay++) {
+          const maxOffsetDay = Math.min(7, Math.max(2, Math.ceil((horizonEnd - minDep) / 1440) + 1));
+          for (let offsetDay = 0; offsetDay <= maxOffsetDay; offsetDay++) {
             const sd = minStartDay + offsetDay;
             const depTime = sd * 1440 + ev.depRel;
             if (depTime < minDep || depTime > horizonEnd) continue;
@@ -464,7 +465,7 @@ export class JsRoutingEngine {
         const keep = Math.max(0, limit - directsOnDate.length);
         journeys.splice(keep);
         journeys.push(...directsOnDate);
-        journeys.sort((a, b) => a.arr - b.arr || b.dep - a.dep || a.transfers - b.transfers);
+        journeys.sort((a, b) => a.arr - b.arr || b.dep - a.dep || a.transfers - b.transfers || a.waiting_minutes - b.waiting_minutes);
       }
     }
 

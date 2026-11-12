@@ -132,14 +132,15 @@
  "issue_counts": {
   "by_severity": {
    "info": 32,
-   "warning": 9
+   "warning": 10
   },
   "by_code": {
    "CLASSES_EMPTY": 21,
    "CODE_RECOVERED_FROM_NAME": 5,
    "STATION_REPEATED_IN_TRAIN": 4,
    "NAME_SHARED_BY_CODES": 3,
-   "STATION_NAME_VARIANTS": 3,
+   "CODE_CORRECTED_FROM_NAME": 2,
+   "STATION_NAME_VARIANTS": 2,
    "ZERO_MINUTE_HOP": 2,
    "LONG_DWELL": 1,
    "SHARED_TIMETABLE_DIFFERENT_DAYS": 1,
@@ -247,11 +248,25 @@
    "message": "12348.json: 1 hop(s) with 0 min running time"
   },
   {
+   "train": "12501",
+   "severity": "warning",
+   "code": "CODE_CORRECTED_FROM_NAME",
+   "stop": 17,
+   "message": "12501.json: station_code BPR replaced by BPB taken from name \"BADARPUR JN.\""
+  },
+  {
    "train": "12516",
    "severity": "warning",
    "code": "CODE_RECOVERED_FROM_NAME",
    "stop": 4,
    "message": "12516.json: station_code \"\" replaced by LMG taken from name \"LUMDING JN LMG Train Reversal\""
+  },
+  {
+   "train": "12970",
+   "severity": "warning",
+   "code": "CODE_CORRECTED_FROM_NAME",
+   "stop": 14,
+   "message": "12970.json: station_code MGR replaced by MAS taken from name \"PURATCHI THALAIVAR DR.\""
   },
   {
    "train": "19415",
@@ -367,19 +382,13 @@
    "train": "-",
    "severity": "warning",
    "code": "STATION_NAME_VARIANTS",
+   "message": "MAS: \"PURATCHI THALAIVAR DR. MGR CTL\"x78, \"PURATCHI THALAIVAR DR.\"x1; canonical \"PURATCHI THALAIVAR DR. MGR CTL\""
+  },
+  {
+   "train": "-",
+   "severity": "warning",
+   "code": "STATION_NAME_VARIANTS",
    "message": "SWM: \"SAWAI MADHOPUR JN\"x68, \"SAWAI MADHOPUR\"x1; canonical \"SAWAI MADHOPUR JN\""
-  },
-  {
-   "train": "-",
-   "severity": "warning",
-   "code": "STATION_NAME_VARIANTS",
-   "message": "MGR: \"MONGHYR\"x2, \"PURATCHI THALAIVAR DR.\"x1; canonical \"MONGHYR\""
-  },
-  {
-   "train": "-",
-   "severity": "warning",
-   "code": "STATION_NAME_VARIANTS",
-   "message": "BPR: \"BHOJIPURA JN.\"x6, \"BADARPUR JN.\"x1; canonical \"BHOJIPURA JN.\""
   },
   {
    "train": "-",

@@ -182,6 +182,14 @@ export function cleanRecord(raw: any, policy: Policy): CleanResult {
         code = m[1].toUpperCase();
       }
     }
+    // Fix known scraper station code corruptions where name clearly indicates canonical station
+    if (code === "MGR" && (rawName.toUpperCase().includes("PURATCHI") || rawName.toUpperCase().includes("CHENNAI"))) {
+      issues.push({ train: t, severity: "warning", code: "CODE_CORRECTED_FROM_NAME", stop: i, message: `station_code MGR replaced by MAS taken from name "${rawName}"` });
+      code = "MAS";
+    } else if (code === "BPR" && rawName.toUpperCase().includes("BADARPUR")) {
+      issues.push({ train: t, severity: "warning", code: "CODE_CORRECTED_FROM_NAME", stop: i, message: `station_code BPR replaced by BPB taken from name "${rawName}"` });
+      code = "BPB";
+    }
     const boardable = isValidStationCode(code);
     if (!boardable) {
       issues.push({ train: t, severity: "warning", code: "PLACEHOLDER_STATION", stop: i, message: `station_code ${JSON.stringify(s.station_code)} (${rawName}) is not a real station; kept as non-boardable pass-through` });

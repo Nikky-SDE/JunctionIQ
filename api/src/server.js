@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { HttpRoutingEngine, HybridRoutingEngine } from "./services/engineClient.js";
@@ -15,9 +16,10 @@ const stations = new StationService();
 stations.load(await loadStationsFromFile(config.stationsFile), "file");
 console.log(`Loaded ${stations.size} stations from ${config.stationsFile}`);
 
-// load timetable for both renderer and in-process JS fallback engine
-const renderer = JourneyRenderer.fromFile(config.timetablePath);
-const jsEngine = config.engineMode === "http" ? null : JsRoutingEngine.fromFile(config.timetablePath);
+// load timetable buffer once for both renderer and in-process JS engine
+const timetableBytes = readFileSync(config.timetablePath);
+const renderer = new JourneyRenderer(timetableBytes);
+const jsEngine = config.engineMode === "http" ? null : new JsRoutingEngine(timetableBytes);
 console.log(`Loaded timetable from ${config.timetablePath} (hash: ${renderer.hash})`);
 
 // setup engine & route services

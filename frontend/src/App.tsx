@@ -104,30 +104,52 @@ export default function App() {
   const lastSearch = useRef<Search | null>(null);
   const fullDataRef = useRef<RouteResponse | null>(null);
 
-  const run = useCallback(async (v: Search, opts: { fresh: boolean; directOnly?: boolean }) => {
-    lastSearch.current = v;
-    setState({ kind: "loading" });
-    setPage(1);
-    setSelectedId(null);
-    setDraft({ from: v.from, to: v.to });
-    setRecent(saveRecent({ from: v.from, to: v.to }));
-    if (opts.fresh) setFilters((f) => ({ ...f, excludedTrains: [] }));
-    try {
-      const data = await searchRoutes({
-        source: v.from.code,
-        destination: v.to.code,
-        date: v.date,
-        time: v.time,
-        ...(opts.directOnly ? { filters: { direct_only: true } } : {}),
-      });
-      if (!opts.directOnly) fullDataRef.current = data;
-      setState({ kind: "done", data });
-    } catch (e) {
-      const err = e as RequestError;
-      setState({ kind: "error", message: err.details?.length ? err.details.map((d) => d.message).join("; ") : err.message });
-    }
-  }, []);
+  const run = useCallback(
+    async (v: Search, opts: { fresh: boolean; pushHistory?: boolean; directOnly?: boolean }) => {
+      lastSearch.current = v;
+      setState({ kind: "loading" });
+      setPage(1);
+      setSelectedId(null);
+      setDraft({ from: v.from, to: v.to });
+      setRecent(saveRecent({ from: v.from, to: v.to }));
+      if (opts.fresh) setFilters((f) => ({ ...f, excludedTrains: [] }));
 
+      if (opts.pushHistory) {
+        const p = new URLSearchParams();
+        p.set("from", v.from.code);
+        p.set("to", v.to.code);
+        p.set("date", v.date);
+        p.set("time", v.time);
+        filtersToParams(opts.fresh ? { ...filters, excludedTrains: [] } : filters, sort, p);
+        window.history.pushState(
+          { from: v.from.code, to: v.to.code, date: v.date, time: v.time },
+          "",
+          `?${p}`,
+        );
+      }
+
+      try {
+        const data = await searchRoutes({
+          source: v.from.code,
+          destination: v.to.code,
+          date: v.date,
+          time: v.time,
+          ...(opts.directOnly ? { filters: { direct_only: true } } : {}),
+        });
+        if (!opts.directOnly) fullDataRef.current = data;
+        setState({ kind: "done", data });
+      } catch (e) {
+        const err = e as RequestError;
+        setState({
+          kind: "error",
+          message: err.details?.length ? err.details.map((d) => d.message).join("; ") : err.message,
+        });
+      }
+    },
+    [filters, sort],
+  );
+
+  // Initial URL parsing on mount
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const now = new Date();
@@ -143,13 +165,22 @@ export default function App() {
       return () => clearTimeout(t);
     }
     let cancelled = false;
-    Promise.all(codes.map((c) => fetch(`/api/stations/${encodeURIComponent(c!)}`).then((r) => (r.ok ? (r.json() as Promise<StationHit>) : null))))
+    Promise.all(
+      codes.map((c) =>
+        fetch(`/api/stations/${encodeURIComponent(c!)}`).then((r) => (r.ok ? (r.json() as Promise<StationHit>) : null)),
+      ),
+    )
       .then(([from, to]) => {
         if (cancelled) return;
         const v = { ...base, from, to };
         setInitial(v);
         setDraft({ from, to });
-        if (from && to) void run({ from, to, date: v.date, time: v.time }, { fresh: false, directOnly: filtersFromParams(p).filters.directOnly });
+        if (from && to) {
+          void run(
+            { from, to, date: v.date, time: v.time },
+            { fresh: false, pushHistory: false, directOnly: filtersFromParams(p).filters.directOnly },
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) setInitial(base);
@@ -159,18 +190,91 @@ export default function App() {
     };
   }, [run]);
 
+  // Listen to browser Back / Forward (popstate) navigation
+  useEffect(() => {
+    const onPopState = () => {
+      const p = new URLSearchParams(window.location.search);
+      const fromCode = p.get("from");
+      const toCode = p.get("to");
+      const now = new Date();
+      const defaultTime = `${String(now.getHours()).padStart(2, "0")}:00`;
+
+      if (!fromCode || !toCode) {
+        // Returned back to root "/"
+        lastSearch.current = null;
+        fullDataRef.current = null;
+        setState({ kind: "idle" });
+        setDraft({ from: null, to: null });
+        setSelectedId(null);
+        setInitial({ from: null, to: null, date: todayIso(), time: defaultTime });
+        setFormKey((k) => k + 1);
+        return;
+      }
+
+      const { filters: nextFilters, sort: nextSort } = filtersFromParams(p);
+      setFilters(nextFilters);
+      setSort(nextSort);
+
+      const cur = lastSearch.current;
+      const targetDate = p.get("date") || todayIso();
+      const targetTime = p.get("time") || defaultTime;
+
+      if (
+        cur &&
+        cur.from.code === fromCode.toUpperCase() &&
+        cur.to.code === toCode.toUpperCase() &&
+        cur.date === targetDate &&
+        cur.time === targetTime
+      ) {
+        // Query parameters matched existing search; filters/sort already updated
+        return;
+      }
+
+      Promise.all([
+        fetch(`/api/stations/${encodeURIComponent(fromCode)}`).then((r) =>
+          r.ok ? (r.json() as Promise<StationHit>) : null,
+        ),
+        fetch(`/api/stations/${encodeURIComponent(toCode)}`).then((r) =>
+          r.ok ? (r.json() as Promise<StationHit>) : null,
+        ),
+      ])
+        .then(([from, to]) => {
+          if (from && to) {
+            const v: SearchInput = { from, to, date: targetDate, time: targetTime };
+            setInitial(v);
+            setDraft({ from, to });
+            setFormKey((k) => k + 1);
+            void run(
+              { from, to, date: targetDate, time: targetTime },
+              { fresh: false, pushHistory: false, directOnly: nextFilters.directOnly },
+            );
+          }
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [run]);
+
+  // Synchronize URL parameters when filters or sorting change on active search
   useEffect(() => {
     const s = lastSearch.current;
-    if (!s && state.kind === "idle") return;
+    if (!s || state.kind === "idle") return;
     const p = new URLSearchParams();
-    if (s) {
-      p.set("from", s.from.code);
-      p.set("to", s.to.code);
-      p.set("date", s.date);
-      p.set("time", s.time);
-    }
+    p.set("from", s.from.code);
+    p.set("to", s.to.code);
+    p.set("date", s.date);
+    p.set("time", s.time);
     filtersToParams(filters, sort, p);
-    window.history.replaceState(null, "", `?${p}`);
+    const newSearch = `?${p}`;
+    if (window.location.search !== newSearch) {
+      window.history.replaceState(
+        { from: s.from.code, to: s.to.code, date: s.date, time: s.time },
+        "",
+        newSearch,
+      );
+    }
   }, [filters, sort, state.kind]);
 
   const all = useMemo(() => (state.kind === "done" ? state.data.routes : []), [state]);
@@ -187,20 +291,22 @@ export default function App() {
       setPage(1);
       if (toggledDirect && lastSearch.current) {
         if (next.directOnly) {
-          void run(lastSearch.current, { fresh: false, directOnly: true });
+          void run(lastSearch.current, { fresh: false, pushHistory: false, directOnly: true });
         } else if (fullDataRef.current) {
           setState({ kind: "done", data: fullDataRef.current });
         } else {
-          void run(lastSearch.current, { fresh: false, directOnly: false });
+          void run(lastSearch.current, { fresh: false, pushHistory: false, directOnly: false });
         }
       }
     },
     [filters.directOnly, run],
   );
+
   const updateSort = useCallback((next: SortKey) => {
     setSort(next);
     setPage(1);
   }, []);
+
   // Keep a journey selected for the map: the first one, unless the current pick is still listed.
   const activeSelectedId = sorted.some((j) => j.id === selectedId) ? selectedId : (sorted[0]?.id ?? null);
 
@@ -209,7 +315,9 @@ export default function App() {
       setSelectedId(id);
       const i = sorted.findIndex((j) => j.id === id);
       if (i >= 0) setPage(Math.floor(i / PAGE_SIZE) + 1);
-      requestAnimationFrame(() => document.getElementById(`journey-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+      requestAnimationFrame(() =>
+        document.getElementById(`journey-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+      );
     },
     [sorted],
   );
@@ -218,13 +326,15 @@ export default function App() {
     setFilters((f) => (f.excludedTrains.includes(n) ? f : { ...f, excludedTrains: [...f.excludedTrains, n] }));
     setPage(1);
   };
+
   const launchQuick = (from: StationHit, to: StationHit) => {
     const date = initial?.date || todayIso();
     const time = initial?.time || "08:00";
     setInitial({ from, to, date, time });
     setFormKey((k) => k + 1);
-    void run({ from, to, date, time }, { fresh: true, directOnly: filters.directOnly });
+    void run({ from, to, date, time }, { fresh: true, pushHistory: true, directOnly: filters.directOnly });
   };
+
   const done = state.kind === "done";
 
   return (
@@ -242,7 +352,9 @@ export default function App() {
         <div className="relative mx-auto max-w-[1440px] px-4">
           <header className="flex items-center gap-3 py-5">
             <BrandLogo />
-            <span className="ml-auto hidden text-xs text-white/80 md:block">Earliest-arrival K-best routing · 2,894 stations · 1,725 trains</span>
+            <span className="ml-auto hidden text-xs text-white/80 md:block">
+              Earliest-arrival K-best routing · 2,894 stations · 1,725 trains
+            </span>
             <div className="ml-auto md:ml-3">
               <ThemeToggle />
             </div>
@@ -251,9 +363,12 @@ export default function App() {
             <h1 className="sr-only">Journeys</h1>
           ) : (
             <div className="pb-4 pt-6">
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Smartest rail connections, transfers included.</h1>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Smartest rail connections, transfers included.
+              </h1>
               <p className="mt-2 max-w-2xl text-sm text-white/80 sm:text-base">
-                Compare direct trains and multi-transfer itineraries ranked together by arrival time. Explore the top 50 journeys on an interactive map.
+                Compare direct trains and multi-transfer itineraries ranked together by arrival time. Explore the top 50
+                journeys on an interactive map.
               </p>
             </div>
           )}
@@ -266,7 +381,7 @@ export default function App() {
             key={formKey}
             initial={initial}
             loading={state.kind === "loading"}
-            onSearch={(v) => void run(v, { fresh: true, directOnly: filters.directOnly })}
+            onSearch={(v) => void run(v, { fresh: true, pushHistory: true, directOnly: filters.directOnly })}
             onStationsChange={(from, to) => setDraft({ from, to })}
           />
         ) : (
@@ -276,10 +391,15 @@ export default function App() {
         {done && (
           <div className="mt-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-1">
             <h2 className="min-w-0 text-sm">
-              <span className="font-semibold">{state.data.query.source_name}</span> <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{state.data.query.source}</span>
+              <span className="font-semibold">{state.data.query.source_name}</span>{" "}
+              <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                {state.data.query.source}
+              </span>
               <span className="mx-2 text-slate-400">→</span>
               <span className="font-semibold">{state.data.query.destination_name}</span>{" "}
-              <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{state.data.query.destination}</span>
+              <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                {state.data.query.destination}
+              </span>
             </h2>
             <p className="text-xs text-slate-500">
               from {shortDate(state.data.query.search_datetime)} {hhmm(state.data.query.search_datetime)}
@@ -289,7 +409,14 @@ export default function App() {
           </div>
         )}
 
-        <div id="results" className={`mt-4 grid scroll-mt-4 gap-5 ${done ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"}`}>
+        <div
+          id="results"
+          className={`mt-4 grid scroll-mt-4 gap-5 ${
+            done
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+              : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"
+          }`}
+        >
           {/* list column */}
           <section className={`min-w-0 space-y-3 ${view === "map" ? "hidden lg:block" : ""}`} aria-live="polite">
             {state.kind === "idle" && (
@@ -299,7 +426,10 @@ export default function App() {
                   <ol className="space-y-3">
                     {[
                       ["Pick two stations", "Type a name or a code. The map pins them as you go."],
-                      ["Search", "The engine finds the 50 earliest-arriving journeys, with up to 10 changes of train and at least 30 minutes to change."],
+                      [
+                        "Search",
+                        "The engine finds the 50 earliest-arriving journeys, with up to 10 changes of train and at least 30 minutes to change.",
+                      ],
                       ["Narrow it down", "Direct trains only, fewer changes, enough time to change trains, no long waits, or leave out a train."],
                     ].map(([t, d], i) => (
                       <li key={t} className="flex gap-3">
@@ -361,7 +491,10 @@ export default function App() {
                 </div>
               ))}
             {state.kind === "error" && (
-              <div role="alert" className="card border-rose-200 p-5 text-sm text-rose-700 dark:border-rose-900 dark:text-rose-300">
+              <div
+                role="alert"
+                className="card border-rose-200 p-5 text-sm text-rose-700 dark:border-rose-900 dark:text-rose-300"
+              >
                 {state.message}
               </div>
             )}
@@ -379,16 +512,22 @@ export default function App() {
                 <SummaryStrip journeys={filtered} selectedId={activeSelectedId} onPick={reveal} />
                 {!state.data.meta.search_complete && all.length > 0 && (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                    The search reached its work limit; the journeys shown are the fastest found, in exact order, but there may be fewer than {MAX_RESULTS}.
+                    The search reached its work limit; the journeys shown are the fastest found, in exact order, but
+                    there may be fewer than {MAX_RESULTS}.
                   </p>
                 )}
                 {all.length === 0 && (
-                  <div className="card p-8 text-center text-sm text-slate-500">{state.data.message ?? "No valid journey found for the specified date and time."}</div>
+                  <div className="card p-8 text-center text-sm text-slate-500">
+                    {state.data.message ?? "No valid journey found for the specified date and time."}
+                  </div>
                 )}
                 {all.length > 0 && filtered.length === 0 && (
                   <div className="card p-8 text-center text-sm text-slate-500">
                     No journey matches the selected filters.{" "}
-                    <button className="font-medium text-brand-600 hover:underline" onClick={() => updateFilters(FILTER_DEFAULTS)}>
+                    <button
+                      className="font-medium text-brand-600 hover:underline"
+                      onClick={() => updateFilters(FILTER_DEFAULTS)}
+                    >
                       Reset filters
                     </button>
                   </div>
@@ -406,7 +545,11 @@ export default function App() {
                 ))}
                 {pages > 1 && (
                   <nav className="flex items-center justify-center gap-1 pt-2" aria-label="Pagination">
-                    <button className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                    <button
+                      className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40"
+                      disabled={page === 1}
+                      onClick={() => setPage(page - 1)}
+                    >
                       ‹ Prev
                     </button>
                     {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
@@ -414,12 +557,20 @@ export default function App() {
                         key={p}
                         aria-current={p === page ? "page" : undefined}
                         onClick={() => setPage(p)}
-                        className={`tabular h-8 w-8 rounded-lg text-sm ${p === page ? "bg-brand-600 font-semibold text-white" : "hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                        className={`tabular h-8 w-8 rounded-lg text-sm ${
+                          p === page
+                            ? "bg-brand-600 font-semibold text-white"
+                            : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
                       >
                         {p}
                       </button>
                     ))}
-                    <button className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40" disabled={page === pages} onClick={() => setPage(page + 1)}>
+                    <button
+                      className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40"
+                      disabled={page === pages}
+                      onClick={() => setPage(page + 1)}
+                    >
                       Next ›
                     </button>
                   </nav>
@@ -436,18 +587,19 @@ export default function App() {
             endpoints={draft}
             className={
               done
-                ? `h-[70vh] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:self-start ${view === "list" ? "hidden lg:block" : ""}`
+                ? `h-[70vh] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:self-start ${
+                    view === "list" ? "hidden lg:block" : ""
+                  }`
                 : "h-[380px] sm:h-[460px] lg:h-auto lg:min-h-[460px]"
             }
           />
         </div>
 
         <footer className="mt-12 space-y-1 text-center text-xs text-slate-500 dark:text-slate-400">
-          <p className="font-medium text-slate-600 dark:text-slate-300">
-            Junction IQ · Built by Nikky
-          </p>
+          <p className="font-medium text-slate-600 dark:text-slate-300">Junction IQ · Built by Nikky</p>
           <p>
-            Times shown in IST. Minimum transfer buffer 30 minutes. Station coordinates: datameet (CC0); map tiles © Esri, OpenStreetMap contributors.
+            Times shown in IST. Minimum transfer buffer 30 minutes. Station coordinates: datameet (CC0); map tiles ©
+            Esri, OpenStreetMap contributors.
           </p>
         </footer>
       </div>

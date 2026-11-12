@@ -2912,7 +2912,7 @@
    "BADARPUR JN.",
    "BADARPUR JN. BPB Train Reversal"
   ],
-  "train_count": 14
+  "train_count": 15
  },
  {
   "code": "BPC",
@@ -2990,10 +2990,9 @@
   "code": "BPR",
   "name": "BHOJIPURA JN.",
   "all_known_names": [
-   "BADARPUR JN.",
    "BHOJIPURA JN."
   ],
-  "train_count": 7
+  "train_count": 6
  },
  {
   "code": "BPRD",
@@ -12716,9 +12715,10 @@
   "code": "MAS",
   "name": "PURATCHI THALAIVAR DR. MGR CTL",
   "all_known_names": [
+   "PURATCHI THALAIVAR DR.",
    "PURATCHI THALAIVAR DR. MGR CTL"
   ],
-  "train_count": 78
+  "train_count": 79
  },
  {
   "code": "MAU",
@@ -13172,10 +13172,9 @@
   "code": "MGR",
   "name": "MONGHYR",
   "all_known_names": [
-   "MONGHYR",
-   "PURATCHI THALAIVAR DR."
+   "MONGHYR"
   ],
-  "train_count": 3
+  "train_count": 2
  },
  {
   "code": "MHBA",

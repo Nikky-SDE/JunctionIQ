@@ -8,6 +8,6 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "cd frontend && npm run build",
-    "test": "cd api && npm test && cd ../scripts && npm test"
+    "test": "cd api && npm test && cd ../scripts && npm test && cd ../frontend && npm test && npm run lint"
   }
 }

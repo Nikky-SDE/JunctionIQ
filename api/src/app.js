@@ -7,7 +7,48 @@ import {
   handleStationsSearch,
 } from "./services/apiHandlers.js";
 
-export function createApp({ stations, routes, engine, corsOrigin }) {
+function createRateLimiter(options = {}) {
+  const windowMs = options.windowMs || 60_000;
+  const max = options.max ?? 60;
+  const requests = new Map();
+
+  // Periodically sweep expired IP records to prevent memory leak
+  const interval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, timestamps] of requests.entries()) {
+      const active = timestamps.filter((t) => now - t < windowMs);
+      if (active.length === 0) {
+        requests.delete(ip);
+      } else {
+        requests.set(ip, active);
+      }
+    }
+  }, Math.max(windowMs * 2, 60_000));
+  if (interval.unref) interval.unref();
+
+  return (req, res, next) => {
+    if (max <= 0) return next();
+    const ip = req.ip || req.socket?.remoteAddress || "unknown";
+    const now = Date.now();
+    const timestamps = (requests.get(ip) || []).filter((t) => now - t < windowMs);
+
+    if (timestamps.length >= max) {
+      res.setHeader("Retry-After", Math.ceil(windowMs / 1000).toString());
+      return res.status(429).json({
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many route search requests. Please slow down.",
+        },
+      });
+    }
+
+    timestamps.push(now);
+    requests.set(ip, timestamps);
+    next();
+  };
+}
+
+export function createApp({ stations, routes, engine, corsOrigin, rateLimitOptions }) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", true);
@@ -49,7 +90,9 @@ export function createApp({ stations, routes, engine, corsOrigin }) {
     res.status(out.status).json(out.body);
   });
 
-  app.post("/api/routes", async (req, res, next) => {
+  const routesRateLimiter = createRateLimiter(rateLimitOptions);
+
+  app.post("/api/routes", routesRateLimiter, async (req, res, next) => {
     try {
       const out = await handleRoutesSearch({ stations, routes, body: req.body });
       res.status(out.status).json(out.body);

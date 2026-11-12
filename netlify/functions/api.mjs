@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -27,6 +27,26 @@ function getModuleDir() {
 const here = getModuleDir();
 let runtimePromise = null;
 
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX) || 60;
+const rateLimitMap = new Map();
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  if (rateLimitMap.size > 1000) {
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (now - v.windowStart >= RATE_LIMIT_WINDOW_MS) rateLimitMap.delete(k);
+    }
+  }
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= RATE_LIMIT_MAX;
+}
+
 function resolveDataFile(envName, relativePath) {
   if (process.env[envName] && existsSync(process.env[envName])) {
     return process.env[envName];
@@ -54,8 +74,9 @@ async function getRuntime() {
       const stations = new StationService();
       stations.load(await loadStationsFromFile(stationsFile), "file");
 
-      const renderer = JourneyRenderer.fromFile(timetablePath);
-      const engine = JsRoutingEngine.fromFile(timetablePath);
+      const timetableBytes = readFileSync(timetablePath);
+      const renderer = new JourneyRenderer(timetableBytes);
+      const engine = new JsRoutingEngine(timetableBytes);
       const maxResults = Number(process.env.MAX_RESULTS) || 50;
       const routes = new RouteService(engine, stations, renderer, maxResults);
 
@@ -119,6 +140,27 @@ export async function handler(event) {
     }
 
     if (method === "POST" && path === "/api/routes") {
+      const clientIp =
+        event.headers?.["x-nf-client-connection-ip"] ||
+        event.headers?.["client-ip"] ||
+        (event.headers?.["x-forwarded-for"] || "").split(",")[0].trim() ||
+        "unknown";
+      if (!checkRateLimit(clientIp)) {
+        return {
+          statusCode: 429,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "retry-after": "60",
+            "x-content-type-options": "nosniff",
+          },
+          body: JSON.stringify({
+            error: {
+              code: "RATE_LIMITED",
+              message: "Too many requests. Please wait a minute before searching again.",
+            },
+          }),
+        };
+      }
       let body = {};
       if (event.body) {
         try {

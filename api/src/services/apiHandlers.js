@@ -8,15 +8,27 @@ const STATION_CODE_RE = /^[A-Za-z0-9_-]{1,12}$/;
 export const routeSchema = z.object({
   source: z.string().trim().min(1).max(8).transform((s) => s.toUpperCase()),
   destination: z.string().trim().min(1).max(8).transform((s) => s.toUpperCase()),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD"),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD")
+    .refine(
+      (val) => {
+        const [y, m, d] = val.split("-").map(Number);
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+      },
+      { message: "must be a valid calendar date" }
+    ),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "must be HH:MM (24h)"),
   limit: z.coerce.number().int().min(1).max(50).default(50),
   page: z.coerce.number().int().min(1).max(50).default(1),
-  filters: z.object({
-    max_duration_minutes: z.coerce.number().int().min(1).optional(),
-    max_transfers: z.coerce.number().int().min(0).max(50).optional(),
-    direct_only: z.boolean().optional(),
-  }).default({}),
+  filters: z
+    .object({
+      max_duration_minutes: z.coerce.number().int().min(1).optional(),
+      max_transfers: z.coerce.number().int().min(0).max(50).optional(),
+      direct_only: z.boolean().optional(),
+    })
+    .default({}),
 }).refine((r) => r.source !== r.destination, {
   message: "source and destination must differ",
   path: ["destination"],

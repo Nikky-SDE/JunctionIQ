@@ -1,6 +1,4 @@
-
-
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { searchStations } from "@/lib/api";
 import type { StationHit } from "@/lib/types";
 
@@ -21,6 +19,44 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const hitsRef = useRef<StationHit[]>([]);
+  useEffect(() => {
+    hitsRef.current = hits;
+  }, [hits]);
+
+  const choose = useCallback(
+    (s: StationHit) => {
+      onChange(s);
+      setDraftText(null);
+      setOpen(false);
+      setHits([]);
+    },
+    [onChange]
+  );
+
+  const checkAutoSelect = useCallback(
+    (currentHits: StationHit[]) => {
+      if (value) return;
+      const q = (draftText ?? "").trim().toUpperCase();
+      if (!q) {
+        setDraftText(null);
+        return;
+      }
+      const exactCode = currentHits.find((h) => h.code.toUpperCase() === q);
+      if (exactCode) {
+        choose(exactCode);
+        return;
+      }
+      const exactName = currentHits.find((h) => h.name.toUpperCase() === q);
+      if (exactName) {
+        choose(exactName);
+        return;
+      }
+      // Reset uncommitted text so input does not display phantom selection
+      setDraftText(null);
+    },
+    [value, draftText, choose]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -47,20 +83,38 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        checkAutoSelect(hitsRef.current);
+      }
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const choose = (s: StationHit) => {
-    onChange(s);
-    setDraftText(null);
-    setOpen(false);
-    setHits([]);
-  };
+  }, [checkAutoSelect]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      if (open && hits.length > 0) {
+        e.preventDefault();
+        choose(hits[active]);
+      } else if (hits.length > 0) {
+        const q = (draftText ?? "").trim().toUpperCase();
+        const exact = hits.find((h) => h.code.toUpperCase() === q || h.name.toUpperCase() === q);
+        if (exact) {
+          e.preventDefault();
+          choose(exact);
+        }
+      }
+      return;
+    }
+    if (e.key === "Tab") {
+      if (hits.length > 0) {
+        const q = (draftText ?? "").trim().toUpperCase();
+        const exact = hits.find((h) => h.code.toUpperCase() === q || h.name.toUpperCase() === q);
+        if (exact) choose(exact);
+      }
+      return;
+    }
     if (!open || hits.length === 0) {
       if (e.key === "ArrowDown") setOpen(true);
       return;
@@ -71,9 +125,6 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => Math.max(0, a - 1));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      choose(hits[active]);
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -108,6 +159,15 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
         onFocus={(e) => {
           setOpen(true);
           e.target.select();
+        }}
+        onBlur={() => {
+          // Delay to allow option click onMouseDown to fire first
+          setTimeout(() => {
+            if (!boxRef.current?.contains(document.activeElement)) {
+              setOpen(false);
+              checkAutoSelect(hitsRef.current);
+            }
+          }, 150);
         }}
         onKeyDown={onKeyDown}
       />
