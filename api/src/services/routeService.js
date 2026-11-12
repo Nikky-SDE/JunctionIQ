@@ -19,6 +19,8 @@ export class RouteService {
       date: q.date,
       time: q.time,
       limit: this.maxResults,
+      ...(q.filters?.direct_only ? { direct_only: true } : {}),
+      ...(q.filters?.max_transfers !== undefined ? { max_transfers: q.filters.max_transfers } : {}),
     });
 
     this.renderer.check(result.timetable);

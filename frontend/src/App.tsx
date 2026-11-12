@@ -102,8 +102,9 @@ export default function App() {
   const [formKey, setFormKey] = useState(0);
   const [recent, setRecent] = useState<RecentEntry[]>(() => (typeof window === "undefined" ? [] : loadRecent()));
   const lastSearch = useRef<Search | null>(null);
+  const fullDataRef = useRef<RouteResponse | null>(null);
 
-  const run = useCallback(async (v: Search, opts: { fresh: boolean }) => {
+  const run = useCallback(async (v: Search, opts: { fresh: boolean; directOnly?: boolean }) => {
     lastSearch.current = v;
     setState({ kind: "loading" });
     setPage(1);
@@ -112,7 +113,14 @@ export default function App() {
     setRecent(saveRecent({ from: v.from, to: v.to }));
     if (opts.fresh) setFilters((f) => ({ ...f, excludedTrains: [] }));
     try {
-      const data = await searchRoutes({ source: v.from.code, destination: v.to.code, date: v.date, time: v.time });
+      const data = await searchRoutes({
+        source: v.from.code,
+        destination: v.to.code,
+        date: v.date,
+        time: v.time,
+        ...(opts.directOnly ? { filters: { direct_only: true } } : {}),
+      });
+      if (!opts.directOnly) fullDataRef.current = data;
       setState({ kind: "done", data });
     } catch (e) {
       const err = e as RequestError;
@@ -141,7 +149,7 @@ export default function App() {
         const v = { ...base, from, to };
         setInitial(v);
         setDraft({ from, to });
-        if (from && to) void run({ from, to, date: v.date, time: v.time }, { fresh: false });
+        if (from && to) void run({ from, to, date: v.date, time: v.time }, { fresh: false, directOnly: filtersFromParams(p).filters.directOnly });
       })
       .catch(() => {
         if (!cancelled) setInitial(base);
@@ -172,10 +180,23 @@ export default function App() {
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const shown = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const updateFilters = useCallback((next: FilterState) => {
-    setFilters(next);
-    setPage(1);
-  }, []);
+  const updateFilters = useCallback(
+    (next: FilterState) => {
+      const toggledDirect = next.directOnly !== filters.directOnly;
+      setFilters(next);
+      setPage(1);
+      if (toggledDirect && lastSearch.current) {
+        if (next.directOnly) {
+          void run(lastSearch.current, { fresh: false, directOnly: true });
+        } else if (fullDataRef.current) {
+          setState({ kind: "done", data: fullDataRef.current });
+        } else {
+          void run(lastSearch.current, { fresh: false, directOnly: false });
+        }
+      }
+    },
+    [filters.directOnly, run],
+  );
   const updateSort = useCallback((next: SortKey) => {
     setSort(next);
     setPage(1);
@@ -202,7 +223,7 @@ export default function App() {
     const time = initial?.time || "08:00";
     setInitial({ from, to, date, time });
     setFormKey((k) => k + 1);
-    void run({ from, to, date, time }, { fresh: true });
+    void run({ from, to, date, time }, { fresh: true, directOnly: filters.directOnly });
   };
   const done = state.kind === "done";
 
@@ -245,7 +266,7 @@ export default function App() {
             key={formKey}
             initial={initial}
             loading={state.kind === "loading"}
-            onSearch={(v) => void run(v, { fresh: true })}
+            onSearch={(v) => void run(v, { fresh: true, directOnly: filters.directOnly })}
             onStationsChange={(from, to) => setDraft({ from, to })}
           />
         ) : (

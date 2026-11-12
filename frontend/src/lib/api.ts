@@ -27,7 +27,13 @@ export async function searchStations(q: string, signal?: AbortSignal): Promise<S
   return (await parse<{ stations: StationHit[] }>(res)).stations;
 }
 
-export async function searchRoutes(input: { source: string; destination: string; date: string; time: string }): Promise<RouteResponse> {
+export async function searchRoutes(input: {
+  source: string;
+  destination: string;
+  date: string;
+  time: string;
+  filters?: { direct_only?: boolean };
+}): Promise<RouteResponse> {
   const res = await fetch("/api/routes", {
     method: "POST",
     headers: { "content-type": "application/json" },

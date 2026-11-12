@@ -68,7 +68,7 @@ test("handleRoutesSearch validates inputs and rejects identical stations", async
   assert.equal(unknown.body.error.code, "UNKNOWN_STATION");
 });
 
-test("JsRoutingEngine computes valid ranked earliest-arrival journeys", async () => {
+test("JsRoutingEngine computes valid ranked earliest-arrival journeys and preserves direct trains", async () => {
   const res = await handleRoutesSearch({
     stations,
     routes,
@@ -81,6 +81,25 @@ test("JsRoutingEngine computes valid ranked earliest-arrival journeys", async ()
       res.body.routes[i].arrival_datetime >= res.body.routes[i - 1].arrival_datetime,
       "journeys must be ordered by earliest arrival",
     );
+  }
+
+  for (const [source, destination] of [["DLI", "LKO"], ["SBC", "NDLS"]]) {
+    const allRes = await handleRoutesSearch({
+      stations,
+      routes,
+      body: { source, destination, date: "2026-11-15", time: "00:00", limit: 50 },
+    });
+    assert.equal(allRes.status, 200);
+    assert.ok(allRes.body.routes.some((r) => r.is_direct), `${source}->${destination} should include direct train`);
+
+    const directRes = await handleRoutesSearch({
+      stations,
+      routes,
+      body: { source, destination, date: "2026-11-15", time: "00:00", limit: 50, filters: { direct_only: true } },
+    });
+    assert.equal(directRes.status, 200);
+    assert.ok(directRes.body.routes.length > 0);
+    assert.ok(directRes.body.routes.every((r) => r.is_direct));
   }
 });
 
