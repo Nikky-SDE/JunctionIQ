@@ -1,0 +1,60 @@
+name: junction-iq
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: routing-engine/Dockerfile
+    image: junction-iq/engine:latest
+    restart: unless-stopped
+    environment:
+      ENGINE_PORT: 7070
+      ENGINE_THREADS: ${ENGINE_THREADS:-8}
+      MIN_TRANSFER_MINUTES: ${MIN_TRANSFER_MINUTES:-30}
+      MAX_TRANSFERS_INTERNAL: ${MAX_TRANSFERS_INTERNAL:-10}
+      TOP_K: 50
+      K_NODE: ${K_NODE:-0}
+      SEARCH_HORIZON_MINUTES: ${SEARCH_HORIZON_MINUTES:-5760}
+      MAX_LABELS: ${MAX_LABELS:-500000}
+    networks: [backend]
+    logging: *logging
+
+  api:
+    image: junction-iq/api:latest
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    environment:
+      API_PORT: 4000
+      ENGINE_URL: http://engine:7070
+      MAX_RESULTS: 50
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      engine: { condition: service_healthy }
+    networks: [backend, frontend]
+    logging: *logging
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: junction-iq/frontend:latest
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - "${PUBLIC_PORT:-80}:3000"
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [frontend]
+    logging: *logging
+
+networks:
+  backend:
+  frontend:

@@ -1,0 +1,33 @@
+{
+  "name": "junction-iq-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Junction IQ REST API gateway and routing hydration service.",
+  "author": "Nikky <nikkycsai2006@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nikky-SDE/JunctionIQ.git"
+  },
+  "homepage": "https://github.com/Nikky-SDE/JunctionIQ#readme",
+  "keywords": [
+    "junction-iq",
+    "train-routing",
+    "indian-railways",
+    "express",
+    "journey-planner"
+  ],
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/api.test.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "zod": "^4.6.5"
+  }
+}

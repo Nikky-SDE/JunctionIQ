@@ -1,0 +1,27 @@
+{
+  "name": "junction-iq-preprocess",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Validation, normalization, and geocoding pipeline for Junction IQ train schedules.",
+  "author": "Nikky <nikkycsai2006@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nikky-SDE/JunctionIQ.git"
+  },
+  "keywords": [
+    "junction-iq",
+    "railway-data",
+    "preprocessing",
+    "geocoding"
+  ],
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "preprocess": "node --experimental-strip-types preprocess.ts",
+    "geocode": "node --experimental-strip-types geocode.ts",
+    "test": "node --experimental-strip-types --test test/normalize.test.ts test/geocode.test.ts"
+  }
+}
