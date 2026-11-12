@@ -34,8 +34,10 @@ export class RouteService {
     }));
 
     const { routes: filtered, applied } = applyFilters(ranked, q.filters);
-    const start = (q.page - 1) * q.limit;
-    const pageRoutes = filtered.slice(start, start + q.limit).map((r) =>
+    const page = Number(q.page) || 1;
+    const limit = Number(q.limit) || this.maxResults;
+    const start = (page - 1) * limit;
+    const pageRoutes = filtered.slice(start, start + limit).map((r) =>
       this.renderer.render(r.j, r.rank, result.search_minute)
     );
 

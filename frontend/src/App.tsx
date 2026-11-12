@@ -105,7 +105,7 @@ export default function App() {
   const fullDataRef = useRef<RouteResponse | null>(null);
 
   const run = useCallback(
-    async (v: Search, opts: { fresh: boolean; pushHistory?: boolean; directOnly?: boolean }) => {
+    async (v: Search, opts: { fresh: boolean; pushHistory?: boolean }) => {
       lastSearch.current = v;
       setState({ kind: "loading" });
       setPage(1);
@@ -134,9 +134,8 @@ export default function App() {
           destination: v.to.code,
           date: v.date,
           time: v.time,
-          ...(opts.directOnly ? { filters: { direct_only: true } } : {}),
         });
-        if (!opts.directOnly) fullDataRef.current = data;
+        fullDataRef.current = data;
         setState({ kind: "done", data });
       } catch (e) {
         const err = e as RequestError;
@@ -178,7 +177,7 @@ export default function App() {
         if (from && to) {
           void run(
             { from, to, date: v.date, time: v.time },
-            { fresh: false, pushHistory: false, directOnly: filtersFromParams(p).filters.directOnly },
+            { fresh: false, pushHistory: false },
           );
         }
       })
@@ -246,7 +245,7 @@ export default function App() {
             setFormKey((k) => k + 1);
             void run(
               { from, to, date: targetDate, time: targetTime },
-              { fresh: false, pushHistory: false, directOnly: nextFilters.directOnly },
+              { fresh: false, pushHistory: false },
             );
           }
         })
@@ -284,23 +283,10 @@ export default function App() {
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const shown = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const updateFilters = useCallback(
-    (next: FilterState) => {
-      const toggledDirect = next.directOnly !== filters.directOnly;
-      setFilters(next);
-      setPage(1);
-      if (toggledDirect && lastSearch.current) {
-        if (next.directOnly) {
-          void run(lastSearch.current, { fresh: false, pushHistory: false, directOnly: true });
-        } else if (fullDataRef.current) {
-          setState({ kind: "done", data: fullDataRef.current });
-        } else {
-          void run(lastSearch.current, { fresh: false, pushHistory: false, directOnly: false });
-        }
-      }
-    },
-    [filters.directOnly, run],
-  );
+  const updateFilters = useCallback((next: FilterState) => {
+    setFilters(next);
+    setPage(1);
+  }, []);
 
   const updateSort = useCallback((next: SortKey) => {
     setSort(next);
@@ -332,7 +318,7 @@ export default function App() {
     const time = initial?.time || "08:00";
     setInitial({ from, to, date, time });
     setFormKey((k) => k + 1);
-    void run({ from, to, date, time }, { fresh: true, pushHistory: true, directOnly: filters.directOnly });
+    void run({ from, to, date, time }, { fresh: true, pushHistory: true });
   };
 
   const done = state.kind === "done";
@@ -381,7 +367,7 @@ export default function App() {
             key={formKey}
             initial={initial}
             loading={state.kind === "loading"}
-            onSearch={(v) => void run(v, { fresh: true, pushHistory: true, directOnly: filters.directOnly })}
+            onSearch={(v) => void run(v, { fresh: true, pushHistory: true })}
             onStationsChange={(from, to) => setDraft({ from, to })}
           />
         ) : (
@@ -500,16 +486,20 @@ export default function App() {
             )}
             {done && (
               <>
-                {all.length > 0 && <FilterBar value={filters} onChange={updateFilters} />}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-slate-500">
-                    {filtered.length} of {all.length} journeys
-                  </span>
-                  <div className="ml-auto">
-                    <SortBar value={sort} onChange={updateSort} />
+                <FilterBar value={filters} onChange={updateFilters} />
+                {all.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-slate-500">
+                      {filtered.length} of {all.length} journeys
+                    </span>
+                    <div className="ml-auto">
+                      <SortBar value={sort} onChange={updateSort} />
+                    </div>
                   </div>
-                </div>
-                <SummaryStrip journeys={filtered} selectedId={activeSelectedId} onPick={reveal} />
+                )}
+                {filtered.length > 0 && (
+                  <SummaryStrip journeys={filtered} selectedId={activeSelectedId} onPick={reveal} />
+                )}
                 {!state.data.meta.search_complete && all.length > 0 && (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                     The search reached its work limit; the journeys shown are the fastest found, in exact order, but

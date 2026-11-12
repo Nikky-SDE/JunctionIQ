@@ -322,7 +322,7 @@ export class JsRoutingEngine {
       }
     }
 
-    const journeys = [];
+    let journeys = [];
     const seenSignatures = new Set();
     let searchComplete = true;
 
@@ -459,13 +459,36 @@ export class JsRoutingEngine {
       }
     }
 
-    if (!directOnly && journeys.length === limit && !journeys.some((j) => j.transfers === 0)) {
-      const directsOnDate = this.#findDirectJourneys(instances, src, dst, searchMinute, firstLegLastDep, 5);
-      if (directsOnDate.length > 0) {
-        const keep = Math.max(0, limit - directsOnDate.length);
-        journeys.splice(keep);
-        journeys.push(...directsOnDate);
-        journeys.sort((a, b) => a.arr - b.arr || b.dep - a.dep || a.transfers - b.transfers || a.waiting_minutes - b.waiting_minutes);
+    // Guarantee direct trains within search horizon are never crowded out by transfer itineraries
+    if (!directOnly) {
+      const directs = this.#findDirectJourneys(instances, src, dst, searchMinute, horizonEnd, limit);
+      if (directs.length > 0) {
+        const existingSignatures = new Set(journeys.map((j) => j.signature));
+        const newDirects = directs.filter((d) => !existingSignatures.has(d.signature));
+        if (newDirects.length > 0) {
+          let merged = [...journeys, ...newDirects];
+          merged.sort(
+            (a, b) =>
+              a.arr - b.arr ||
+              b.dep - a.dep ||
+              a.transfers - b.transfers ||
+              a.waiting_minutes - b.waiting_minutes
+          );
+          if (merged.length > limit) {
+            const dir = merged.filter((j) => j.transfers === 0);
+            const xfer = merged.filter((j) => j.transfers > 0);
+            const remaining = Math.max(0, limit - dir.length);
+            merged = [...dir, ...xfer.slice(0, remaining)];
+            merged.sort(
+              (a, b) =>
+                a.arr - b.arr ||
+                b.dep - a.dep ||
+                a.transfers - b.transfers ||
+                a.waiting_minutes - b.waiting_minutes
+            );
+          }
+          journeys = merged;
+        }
       }
     }
 
