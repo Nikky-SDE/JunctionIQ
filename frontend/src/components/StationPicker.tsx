@@ -14,7 +14,8 @@ interface Props {
 
 export function StationPicker({ label, value, onChange, placeholder, autoFocus }: Props) {
   const id = useId();
-  const [text, setText] = useState(value?.label ?? "");
+  const [draftText, setDraftText] = useState<string | null>(null);
+  const text = draftText ?? (value?.label ?? "");
   const [hits, setHits] = useState<StationHit[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -22,16 +23,9 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setText(value?.label ?? "");
-  }, [value]);
-
-  useEffect(() => {
     if (!open) return;
     const q = text.trim();
-    if (!q || q === value?.label) {
-      setHits([]);
-      return;
-    }
+    if (!q || q === value?.label) return;
     const ctrl = new AbortController();
     const timer = setTimeout(async () => {
       setLoading(true);
@@ -61,7 +55,7 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
 
   const choose = (s: StationHit) => {
     onChange(s);
-    setText(s.label);
+    setDraftText(null);
     setOpen(false);
     setHits([]);
   };
@@ -105,8 +99,10 @@ export function StationPicker({ label, value, onChange, placeholder, autoFocus }
         placeholder={placeholder ?? "Station name or code"}
         value={text}
         onChange={(e) => {
-          setText(e.target.value);
+          const next = e.target.value;
+          setDraftText(next);
           setOpen(true);
+          if (!next.trim()) setHits([]);
           if (value) onChange(null);
         }}
         onFocus={(e) => {

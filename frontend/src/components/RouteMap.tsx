@@ -1,6 +1,6 @@
 
 import "leaflet/dist/leaflet.css";
-import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { CircleMarker, MapContainer, Pane, Polyline, TileLayer, Tooltip, useMap, ZoomControl } from "react-leaflet";
 import { boundsOf, INDIA_CENTER, journeyPaths, loadCoords, smoothPath, type Coords, type LatLon } from "@/lib/geo";
 import { hhmm, stationLabel } from "@/lib/format";
@@ -43,14 +43,19 @@ const ATTRIBUTION =
 function ViewController({ bounds, topPad }: { bounds: [LatLon, LatLon] | null; topPad: number }) {
   const map = useMap();
   const latest = useRef(bounds);
-  latest.current = bounds;
   const pad = useRef(topPad);
-  pad.current = topPad;
-  const fit = (b: [LatLon, LatLon], animate: boolean) =>
-    map.fitBounds(b, { paddingTopLeft: [40, pad.current], paddingBottomRight: [40, 56], maxZoom: 10, animate });
+  useEffect(() => {
+    latest.current = bounds;
+    pad.current = topPad;
+  }, [bounds, topPad]);
+  const fit = useCallback(
+    (b: [LatLon, LatLon], animate: boolean) =>
+      map.fitBounds(b, { paddingTopLeft: [40, pad.current], paddingBottomRight: [40, 56], maxZoom: 10, animate }),
+    [map],
+  );
   useEffect(() => {
     if (bounds) fit(bounds, true);
-  }, [map, bounds]);
+  }, [fit, bounds]);
   useEffect(() => {
     const el = map.getContainer();
     let w = el.clientWidth;
@@ -64,7 +69,7 @@ function ViewController({ bounds, topPad }: { bounds: [LatLon, LatLon] | null; t
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [map]);
+  }, [map, fit]);
   return null;
 }
 
@@ -91,9 +96,11 @@ export default function RouteMap({ journeys, selectedId, hoverId, onSelect, endp
   const to = pin(endpoints.to);
 
   // What to frame: the selected journey, else all journeys (after "fit all"), else the chosen endpoints.
-  const [fitAll, setFitAll] = useState(false);
-  useEffect(() => setFitAll(fitAllSignal > 0), [fitAllSignal]);
-  useEffect(() => setFitAll(false), [selectedId]);
+  const [fitAllState, setFitAllState] = useState<{ signal: number; forId: string | null }>({ signal: 0, forId: null });
+  if (fitAllSignal > 0 && fitAllState.signal !== fitAllSignal) {
+    setFitAllState({ signal: fitAllSignal, forId: selectedId });
+  }
+  const fitAll = fitAllSignal > 0 && fitAllState.forId === selectedId;
   const bounds = useMemo(() => {
     if (!coords) return null;
     if (selected && !fitAll) return boundsOf((paths.get(selected.id) ?? []).flat());
@@ -105,8 +112,8 @@ export default function RouteMap({ journeys, selectedId, hoverId, onSelect, endp
   // journeys × every stop would be a lot of points for faint background lines).
   const selectedPaths = useMemo(() => (selected ? (paths.get(selected.id) ?? []).map((l) => smoothPath(l)) : []), [selected, paths]);
   const [mapHoverId, setMapHoverId] = useState<string | null>(null);
-  const [hoverLeg, setHoverLeg] = useState<number | null>(null);
-  useEffect(() => setHoverLeg(null), [selectedId]);
+  const [hoverLegState, setHoverLegState] = useState<{ forId: string | null; leg: number | null }>({ forId: null, leg: null });
+  const hoverLeg = hoverLegState.forId === selectedId ? hoverLegState.leg : null;
 
   const others = journeys.filter((j) => j.id !== selectedId);
   const muted = dark ? "#64748b" : "#94a3b8";
@@ -154,7 +161,7 @@ export default function RouteMap({ journeys, selectedId, hoverId, onSelect, endp
               <Polyline
                 positions={line}
                 pathOptions={{ ...round, color: legColor(i), weight: hot ? 7 : 5, opacity: dim ? 0.55 : 1 }}
-                eventHandlers={{ mouseover: () => setHoverLeg(i), mouseout: () => setHoverLeg((h) => (h === i ? null : h)) }}
+                eventHandlers={{ mouseover: () => setHoverLegState({ forId: selected.id, leg: i }), mouseout: () => setHoverLegState((h) => (h.forId === selected.id && h.leg === i ? { forId: selected.id, leg: null } : h)) }}
               >
                 <Tooltip sticky className="stop-tip">
                   <div className="font-semibold">

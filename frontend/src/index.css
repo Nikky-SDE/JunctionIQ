@@ -97,7 +97,7 @@ h1, h2, h3, .font-display {
       hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-white;
   }
   .toggle[aria-pressed="true"] {
-    @apply border-brand-600 bg-brand-600 text-white hover:bg-brand-700 hover:text-white dark:border-brand-500 dark:bg-brand-500 dark:hover:bg-brand-400;
+    @apply border-brand-600 bg-brand-600 text-white hover:bg-brand-700 hover:text-white dark:border-brand-600 dark:bg-brand-600 dark:hover:bg-brand-500;
   }
 
   .segmented {

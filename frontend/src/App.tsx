@@ -88,8 +88,12 @@ type Search = { from: StationHit; to: StationHit; date: string; time: string };
 export default function App() {
   const [initial, setInitial] = useState<SearchInput | null>(null);
   const [state, setState] = useState<State>({ kind: "idle" });
-  const [filters, setFilters] = useState<FilterState>(FILTER_DEFAULTS);
-  const [sort, setSort] = useState<SortKey>("arrival");
+  const [filters, setFilters] = useState<FilterState>(() =>
+    typeof window === "undefined" ? FILTER_DEFAULTS : filtersFromParams(new URLSearchParams(window.location.search)).filters,
+  );
+  const [sort, setSort] = useState<SortKey>(() =>
+    typeof window === "undefined" ? "arrival" : filtersFromParams(new URLSearchParams(window.location.search)).sort,
+  );
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -118,9 +122,6 @@ export default function App() {
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    const restored = filtersFromParams(p);
-    setFilters(restored.filters);
-    setSort(restored.sort);
     const now = new Date();
     const base: SearchInput = {
       from: null,
@@ -129,7 +130,10 @@ export default function App() {
       time: p.get("time") || `${String(now.getHours()).padStart(2, "0")}:00`,
     };
     const codes = [p.get("from"), p.get("to")];
-    if (!codes[0] || !codes[1]) return setInitial(base);
+    if (!codes[0] || !codes[1]) {
+      const t = setTimeout(() => setInitial(base), 0);
+      return () => clearTimeout(t);
+    }
     let cancelled = false;
     Promise.all(codes.map((c) => fetch(`/api/stations/${encodeURIComponent(c!)}`).then((r) => (r.ok ? (r.json() as Promise<StationHit>) : null))))
       .then(([from, to]) => {
@@ -168,11 +172,16 @@ export default function App() {
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const shown = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => setPage(1), [filters, sort]);
+  const updateFilters = useCallback((next: FilterState) => {
+    setFilters(next);
+    setPage(1);
+  }, []);
+  const updateSort = useCallback((next: SortKey) => {
+    setSort(next);
+    setPage(1);
+  }, []);
   // Keep a journey selected for the map: the first one, unless the current pick is still listed.
-  useEffect(() => {
-    if (!sorted.some((j) => j.id === selectedId)) setSelectedId(sorted[0]?.id ?? null);
-  }, [sorted, selectedId]);
+  const activeSelectedId = sorted.some((j) => j.id === selectedId) ? selectedId : (sorted[0]?.id ?? null);
 
   const reveal = useCallback(
     (id: string) => {
@@ -184,7 +193,10 @@ export default function App() {
     [sorted],
   );
 
-  const excludeTrain = (n: string) => setFilters((f) => (f.excludedTrains.includes(n) ? f : { ...f, excludedTrains: [...f.excludedTrains, n] }));
+  const excludeTrain = (n: string) => {
+    setFilters((f) => (f.excludedTrains.includes(n) ? f : { ...f, excludedTrains: [...f.excludedTrains, n] }));
+    setPage(1);
+  };
   const launchQuick = (from: StationHit, to: StationHit) => {
     const date = initial?.date || todayIso();
     const time = initial?.time || "08:00";
@@ -334,16 +346,16 @@ export default function App() {
             )}
             {done && (
               <>
-                {all.length > 0 && <FilterBar value={filters} onChange={setFilters} />}
+                {all.length > 0 && <FilterBar value={filters} onChange={updateFilters} />}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-slate-500">
                     {filtered.length} of {all.length} journeys
                   </span>
                   <div className="ml-auto">
-                    <SortBar value={sort} onChange={setSort} />
+                    <SortBar value={sort} onChange={updateSort} />
                   </div>
                 </div>
-                <SummaryStrip journeys={filtered} selectedId={selectedId} onPick={reveal} />
+                <SummaryStrip journeys={filtered} selectedId={activeSelectedId} onPick={reveal} />
                 {!state.data.meta.search_complete && all.length > 0 && (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
                     The search reached its work limit; the journeys shown are the fastest found, in exact order, but there may be fewer than {MAX_RESULTS}.
@@ -355,7 +367,7 @@ export default function App() {
                 {all.length > 0 && filtered.length === 0 && (
                   <div className="card p-8 text-center text-sm text-slate-500">
                     No journey matches the selected filters.{" "}
-                    <button className="font-medium text-brand-600 hover:underline" onClick={() => setFilters(FILTER_DEFAULTS)}>
+                    <button className="font-medium text-brand-600 hover:underline" onClick={() => updateFilters(FILTER_DEFAULTS)}>
                       Reset filters
                     </button>
                   </div>
@@ -365,7 +377,7 @@ export default function App() {
                     key={j.id}
                     j={j}
                     badges={badges.get(j.id) ?? []}
-                    selected={j.id === selectedId}
+                    selected={j.id === activeSelectedId}
                     onSelect={() => setSelectedId(j.id)}
                     onHover={(on) => setHoverId(on ? j.id : null)}
                     onExcludeTrain={excludeTrain}
@@ -397,7 +409,7 @@ export default function App() {
 
           <MapPanel
             journeys={sorted}
-            selectedId={selectedId}
+            selectedId={activeSelectedId}
             hoverId={hoverId}
             onSelect={reveal}
             endpoints={draft}
